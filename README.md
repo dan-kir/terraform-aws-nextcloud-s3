@@ -1,31 +1,43 @@
 terraform-aws-nextcloud-s3
 ==============================
-Template a VPC, Internet Gateway, Network, Security Groups, IAM user, S3 Bucket
-and Instance with Elastic IP.
+This template includes the following:
+* Virtual Private Cloud (VPC)
+* Internet Gateway
+* Subnet
+* Route Table
+* Security Group
+* IAM user
+* IAM Access Credentials
+* KMS Key
+* S3 Bucket
+* EC2 Instance
+* Elastic IP (EIP)
 
-The S3 bucket can be configured as a storage back-end for Nextcloud.
+The S3 bucket is configure with server-side encryption by default using a KMS key.
 
-The public IP address (Elastic IP) and IAM access token will be outputted at completion.
+The EIP and IAM user access token will be outputted at completion.
 
-The IAM secret can be parsed from the Terraform state
+The IAM user access secret can be parsed from the Terraform state.
 
 Eg. `terraform state pull | jq '.resources[] | select(.type == "aws_iam_access_key") | .instances[0].attributes'`
 
-*Working on templating S3 server-side encryption with an AWS Key Management Service (AWS KMS) key*
 
 Requirements
 ------------
 Requires Terraform 1.0.8 or later.
 
-Terraform Variables
+Variables
 --------------
-The following is configurable in `terraform-aws-ec2-instance.auto.tfvars`
+The following is defined in - `terraform-aws-ec2-instance.auto.tfvars`
 * Region and Availability Zone
 * AMI IDs
 * Application Credentials
 * SSH Keys
 * Instance Size
+* Instance Disk Size
 * IP Addressing
+* S3 Bucket Name
+* S3 Bucket User
 
 License
 -------

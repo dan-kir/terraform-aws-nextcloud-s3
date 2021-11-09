@@ -22,6 +22,9 @@ aws_ssh_private_key = "~/.ssh/id_rsa"
 ## https://aws.amazon.com/ec2/instance-types/
 aws_instance_size = "t2.medium"
 
+## AWS Instance disk size in GBs
+aws_instance_disk_size = 8
+
 ## AWS VPC Network Variables
 aws_vpc_cidr = "10.0.0.0/16"
 
@@ -30,3 +33,9 @@ aws_net_cidr = "10.0.1.0/24"
 
 ## AWS Instance Private IP Addresses
 aws_nextcloud01_private_ip = "10.0.1.10"
+
+## AWS S3 Bucket Name
+aws_bucket_name = "a-unique-bucket-name-here"
+
+## AWS S3 Bucket IAM User
+aws_iam_bucket_user = "nextcloud-iam-user"

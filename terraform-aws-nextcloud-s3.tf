@@ -7,9 +7,12 @@ variable "aws_secret_key" {}
 variable "aws_ssh_public_key" {}
 variable "aws_ssh_private_key" {}
 variable "aws_instance_size" {}
+variable "aws_instance_disk_size" {}
 variable "aws_vpc_cidr" {}
 variable "aws_net_cidr" {}
 variable "aws_nextcloud01_private_ip" {}
+variable "aws_bucket_name" {}
+variable "aws_iam_bucket_user" {}
 
 ## AWS Provider Configuration
 provider "aws" {
@@ -24,14 +27,14 @@ resource "aws_key_pair" "nextcloud_ssh_key" {
   public_key = file(var.aws_ssh_public_key)
 }
 
-## Define AWS VPC
+## AWS VPC
 resource "aws_vpc" "aws_vpc" {
   cidr_block           = var.aws_vpc_cidr
   enable_dns_hostnames = false
   tags                 = { Name = "aws_vpc" }
 }
 
-## Internet Gateway
+## AWS Internet Gateway
 resource "aws_internet_gateway" "aws_gateway" {
   vpc_id = aws_vpc.aws_vpc.id
   tags   = { Name = "aws_gateway" }
@@ -67,7 +70,7 @@ resource "aws_eip" "nextcloud01_eip" {
   instance = aws_instance.nextcloud01.id
 }
 
-## Nextcloud Instance
+## Nextcloud01 Instance
 resource "aws_instance" "nextcloud01" {
   tags                        = { Name = "nextcloud01" }
   key_name                    = aws_key_pair.nextcloud_ssh_key.key_name
@@ -92,11 +95,12 @@ resource "aws_instance" "nextcloud01" {
   root_block_device {
     delete_on_termination = true
     volume_type           = "gp2"
-    volume_size           = 16
+    volume_size           = var.aws_instance_disk_size
   }
 
 }
 
+## AWS Nextcloud Security Group
 resource "aws_security_group" "nextcloud_sg" {
   name        = "nextcloud_sg"
   description = "Nextcloud security group"
@@ -127,40 +131,102 @@ resource "aws_security_group" "nextcloud_sg" {
   }
 }
 
-resource "aws_iam_user" "nextcloud-s3" {
-  name = "nextcloud-s3"
+## AWS IAM User with S3 bucket and KMS access
+resource "aws_iam_user" "nextcloud-s3-user" {
+  name = var.aws_iam_bucket_user
 }
 
-resource "aws_iam_access_key" "nextcloud-s3" {
-  user = aws_iam_user.nextcloud-s3.name
+## AWS IAM User Access Credentials
+resource "aws_iam_access_key" "nextcloud-s3-user" {
+  user = aws_iam_user.nextcloud-s3-user.name
 }
 
-data "aws_canonical_user_id" "nextcloud-s3" {}
+data "aws_canonical_user_id" "nextcloud-s3-user" {}
+data "aws_caller_identity" "current" {}
 
-## The bucket name here needs to be unique and match the name in the
-## s3 policy below
+## AWS KMS Key
+resource "aws_kms_key" "nextcloud_bucket_key" {
+  description             = "This key is used to encrypt Nextcloud bucket objects"
+  deletion_window_in_days = 10
+  key_usage               = "ENCRYPT_DECRYPT"
+  policy                  = <<EOF
+{
+  "Version": "2012-10-17",
+  "Id": "kms-key-policy",
+  "Statement": [
+    {
+      "Sid": "Enable IAM User Permissions",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "${aws_iam_user.nextcloud-s3-user.arn}",
+          "${data.aws_caller_identity.current.arn}"
+        ]},
+      "Action": "kms:*",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_s3_account_public_access_block" "public_access_block" {
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+## AWS S3 Bucket
 resource "aws_s3_bucket" "nextcloud_bucket" {
-  bucket        = "tf-nextcloud-bucket"
-  #region        = var.aws_region
+  bucket = var.aws_bucket_name
   force_destroy = true
-  depends_on    = [aws_iam_user.nextcloud-s3]
+  depends_on    = [aws_iam_user.nextcloud-s3-user]
+
+  versioning {
+    enabled = true
+  }
 
   grant {
-    id          = data.aws_canonical_user_id.nextcloud-s3.id
+    id          = data.aws_canonical_user_id.nextcloud-s3-user.id
     type        = "CanonicalUser"
     permissions = ["FULL_CONTROL"]
   }
 
-  #server_side_encryption_configuration {
-  #  rule {
-  #    apply_server_side_encryption_by_default {
-  #      kms_master_key_id = aws_kms_key.bucket_key.arn
-  #      sse_algorithm     = "aws:kms"
-  #    }
-  #  }
-  #}
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        kms_master_key_id = aws_kms_key.nextcloud_bucket_key.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
 }
 
+## AWS KMS Policy
+resource "aws_iam_policy" "kms_policy" {
+  name        = "kms_policy"
+  path        = "/"
+  description = "IAM Policy to allow use of KMS Key"
+  policy      = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": {
+      "Effect": "Allow",
+      "Action": [
+        "kms:Describe*",
+        "kms:List*",
+        "kms:Get*",
+        "kms:Encrypt",
+        "kms:Decrypt"
+        ],
+      "Resource": "*"
+    }
+}
+EOF
+}
+
+## AWS S3 Bucket Policy
 resource "aws_iam_policy" "nextcloud_s3_policy" {
   name        = "nextcloud_s3_policy"
   path        = "/"
@@ -182,8 +248,8 @@ resource "aws_iam_policy" "nextcloud_s3_policy" {
             "Effect": "Allow",
             "Action": "s3:*",
             "Resource": [
-                "arn:aws:s3:::tf-nextcloud-bucket",
-                "arn:aws:s3:::tf-nextcloud-bucket/*"
+                "arn:aws:s3:::${var.aws_bucket_name}",
+                "arn:aws:s3:::${var.aws_bucket_name}/*"
             ]
         }
     ]
@@ -192,17 +258,24 @@ EOF
 }
 
 resource "aws_iam_user_policy_attachment" "s3_policy_attach" {
-  user       = aws_iam_user.nextcloud-s3.name
+  user       = aws_iam_user.nextcloud-s3-user.name
   policy_arn = aws_iam_policy.nextcloud_s3_policy.arn
 }
 
-output "nextcloud-s3_secret" {
-  value = aws_iam_access_key.nextcloud-s3.secret
+resource "aws_iam_user_policy_attachment" "kms_policy_attach" {
+  user       = aws_iam_user.nextcloud-s3-user.name
+  policy_arn = aws_iam_policy.kms_policy.arn
+}
+
+## AWS IAM Access Token Secret can be parsed from Terraform.state
+## terraform state pull | jq '.resources[] | select(.type == "aws_iam_access_key") | .instances[0].attributes'
+output "nextcloud-s3-user_secret" {
+  value     = aws_iam_access_key.nextcloud-s3-user.secret
   sensitive = true
 }
 
-output "nextcloud-s3_access_token" {
-  value = aws_iam_access_key.nextcloud-s3.id
+output "nextcloud-s3-user_access_token" {
+  value = aws_iam_access_key.nextcloud-s3-user.id
 }
 
 output "nextcloud01_eip" {
