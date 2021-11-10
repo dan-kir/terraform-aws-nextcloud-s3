@@ -21,7 +21,6 @@ The IAM user access secret can be parsed from the Terraform state.
 
 Eg. `terraform state pull | jq '.resources[] | select(.type == "aws_iam_access_key") | .instances[0].attributes'`
 
-
 Requirements
 ------------
 Requires Terraform 1.0.8 or later.
@@ -38,6 +37,10 @@ The following is defined in - `terraform-aws-ec2-instance.auto.tfvars`
 * IP Addressing
 * S3 Bucket Name
 * S3 Bucket User
+
+Graph
+-------------
+![alt text](terraform-graph.svg "terraform-graph.svg")
 
 License
 -------
