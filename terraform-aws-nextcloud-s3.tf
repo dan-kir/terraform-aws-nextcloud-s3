@@ -149,6 +149,7 @@ resource "aws_kms_key" "nextcloud_bucket_key" {
   description             = "This key is used to encrypt Nextcloud bucket objects"
   deletion_window_in_days = 10
   key_usage               = "ENCRYPT_DECRYPT"
+  enable_key_rotation     = true
   policy                  = <<EOF
 {
   "Version": "2012-10-17",
