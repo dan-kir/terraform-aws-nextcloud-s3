@@ -1,26 +1,3 @@
-## Environment Variables - terraform-aws-ec2-instance.auto.tfvars
-variable "aws_region" {}
-variable "aws_az" {}
-variable "aws_ami" { type = map(string) }
-variable "aws_access_key" {}
-variable "aws_secret_key" {}
-variable "aws_ssh_public_key" {}
-variable "aws_ssh_private_key" {}
-variable "aws_instance_size" {}
-variable "aws_instance_disk_size" {}
-variable "aws_vpc_cidr" {}
-variable "aws_net_cidr" {}
-variable "aws_nextcloud01_private_ip" {}
-variable "aws_bucket_name" {}
-variable "aws_iam_bucket_user" {}
-
-## AWS Provider Configuration
-provider "aws" {
-  access_key = var.aws_access_key
-  secret_key = var.aws_secret_key
-  region     = var.aws_region
-}
-
 ## AWS SSH Keypair
 resource "aws_key_pair" "nextcloud_ssh_key" {
   key_name   = "nextcloud_ssh_key"
@@ -77,7 +54,7 @@ resource "aws_instance" "nextcloud01" {
   ami                         = var.aws_ami[var.aws_region]
   availability_zone           = var.aws_az
   instance_type               = var.aws_instance_size
-  user_data                   = file("scripts/nextcloud01_bootstrap.sh")
+  user_data                   = file(var.aws_instance_user_data)
   associate_public_ip_address = true
   subnet_id                   = aws_subnet.aws_net.id
   private_ip                  = var.aws_nextcloud01_private_ip
@@ -183,23 +160,37 @@ resource "aws_s3_bucket" "nextcloud_bucket" {
   bucket = var.aws_bucket_name
   force_destroy = true
   depends_on    = [aws_iam_user.nextcloud-s3-user]
+}
 
-  versioning {
-    enabled = true
-  }
-
-  grant {
-    id          = data.aws_canonical_user_id.nextcloud-s3-user.id
-    type        = "CanonicalUser"
-    permissions = ["FULL_CONTROL"]
-  }
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        kms_master_key_id = aws_kms_key.nextcloud_bucket_key.arn
-        sse_algorithm     = "aws:kms"
+resource "aws_s3_bucket_acl" "bucket_acl" {
+  bucket = var.aws_bucket_name
+  access_control_policy {
+    grant {
+      grantee {
+        id   = data.aws_canonical_user_id.nextcloud-s3-user.id
+        type = "CanonicalUser"
       }
+      permission = "FULL_CONTROL"
+    }
+    owner {
+      id = data.aws_canonical_user_id.nextcloud-s3-user.id
+    }
+  }
+}
+resource "aws_s3_bucket_versioning" "bucket_versioning" {
+  bucket = var.aws_bucket_name
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "server_side_encryption_config" {
+  bucket = var.aws_bucket_name
+
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.nextcloud_bucket_key.arn
+      sse_algorithm     = "aws:kms"
     }
   }
 }
@@ -266,19 +257,4 @@ resource "aws_iam_user_policy_attachment" "s3_policy_attach" {
 resource "aws_iam_user_policy_attachment" "kms_policy_attach" {
   user       = aws_iam_user.nextcloud-s3-user.name
   policy_arn = aws_iam_policy.kms_policy.arn
-}
-
-## AWS IAM Access Token Secret can be parsed from Terraform.state
-## terraform state pull | jq '.resources[] | select(.type == "aws_iam_access_key") | .instances[0].attributes'
-output "nextcloud-s3-user_secret" {
-  value     = aws_iam_access_key.nextcloud-s3-user.secret
-  sensitive = true
-}
-
-output "nextcloud-s3-user_access_token" {
-  value = aws_iam_access_key.nextcloud-s3-user.id
-}
-
-output "nextcloud01_eip" {
-  value = aws_eip.nextcloud01_eip.public_ip
 }

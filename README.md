@@ -29,7 +29,7 @@ Requires Terraform 1.0.8 or later.
 
 Variables
 --------------
-The following is defined in - `terraform-aws-ec2-instance.auto.tfvars`
+The following is configurable in - `variables.tfvars`
 * Region and Availability Zone
 * AMI IDs
 * Application Credentials
@@ -42,7 +42,7 @@ The following is defined in - `terraform-aws-ec2-instance.auto.tfvars`
 
 Graph
 -------------
-![alt text](terraform-graph.svg "terraform-graph.svg")
+![alt text](graph.svg "graph.svg")
 
 License
 -------

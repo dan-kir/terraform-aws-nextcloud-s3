@@ -6,8 +6,8 @@ aws_az = "ap-southeast-2a"
 
 ## AWS Public AMD64 Debian 11 AMIs
 aws_ami = {
-  "ap-southeast-2" = "ami-08c84d2c9a8220bd4" ## Sydney
-  "ap-northeast-1" = "ami-0eb95414a2f4586df" ## Tokyo
+  "ap-southeast-2" = "ami-01c840b88b5c5ccc8" ## Sydney
+  "ap-northeast-1" = "ami-0fa72bd3d748a670f" ## Tokyo
 }
 
 ## AWS Application Credentials (API Keys)
@@ -17,6 +17,9 @@ aws_secret_key = "{secret_key_here}"
 ## AWS SSH Keys
 aws_ssh_public_key  = "~/.ssh/id_rsa.pub"
 aws_ssh_private_key = "~/.ssh/id_rsa"
+
+## AWS User Data
+aws_instance_user_data = "scripts/nextcloud01_bootstrap.sh"
 
 ## AWS Instance Size
 ## https://aws.amazon.com/ec2/instance-types/
@@ -35,7 +38,7 @@ aws_net_cidr = "10.0.1.0/24"
 aws_nextcloud01_private_ip = "10.0.1.10"
 
 ## AWS S3 Bucket Name
-aws_bucket_name = "a-unique-bucket-name-here"
+aws_bucket_name = "{a-unique-bucket-name-here}"
 
 ## AWS S3 Bucket IAM User
-aws_iam_bucket_user = "nextcloud-iam-user"
+aws_iam_bucket_user = "{a-username-here}"
